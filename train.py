@@ -1,5 +1,4 @@
-# train.py
-"""
+""""
 CartPole Training & Evaluation (PyTorch + Gymnasium)
 ---------------------------------------------------
 - Trains a DQN agent and logs scores via ScoreLogger (PNG + CSV)
@@ -7,8 +6,8 @@ CartPole Training & Evaluation (PyTorch + Gymnasium)
 - Evaluates from a saved model (render optional)
 
 Student reading map:
-  1) train(): env loop → agent.act() → env.step() → agent.remember() → agent.experience_replay()
-  2) evaluate(): loads saved model and runs greedy policy (no exploration)
+  1) train(): env loop → agent.act() → env.step() → agent.step() [Encapsulated]
+  2) evaluate(): loads saved model and runs agent.act(evaluation_mode=True)
 """
 
 from __future__ import annotations
@@ -32,7 +31,7 @@ def train(num_episodes: int = 200, terminal_penalty: bool = True) -> DQNSolver:
       - Creates the environment and agent
       - For each episode:
           * Reset env → get initial state
-          * Loop: select action, step environment, store transition, learn
+          * Loop: select action, step environment, call agent.step()
           * Log episode score with ScoreLogger
       - Saves the trained model to disk
     """
@@ -60,26 +59,29 @@ def train(num_episodes: int = 200, terminal_penalty: bool = True) -> DQNSolver:
         while True:
             steps += 1
 
-            # ε-greedy action from the agent
+            # 1. ε-greedy action from the agent (training mode)
+            #    state shape is [1, obs_dim]
             action = agent.act(state)
 
-            # Gymnasium step returns: obs', reward, terminated, truncated, info
-            next_state, reward, terminated, truncated, info = env.step(action)
+            # 2. Gymnasium step returns: obs', reward, terminated, truncated, info
+            next_state_raw, reward, terminated, truncated, info = env.step(action)
             done = terminated or truncated
 
-            # Optional small terminal penalty (encourage agent to avoid failure)
+            # 3. Optional small terminal penalty (encourage agent to avoid failure)
             if terminal_penalty and done:
                 reward = -1.0
+            
+            # 4. Reshape next_state for agent and next loop iteration
+            next_state = np.reshape(next_state_raw, (1, obs_dim))
 
-            # Store transition and trigger one learning step
-            next_state = np.reshape(next_state, (1, obs_dim))
-            agent.remember(state.squeeze(0), action, reward, next_state.squeeze(0), done)
-            agent.experience_replay()
+            # 5. Give (s, a, r, s', done) to the agent, which handles
+            #    remembering and learning internally.
+            agent.step(state, action, reward, next_state, done)
 
-            # Move to next state
+            # 6. Move to next state
             state = next_state
 
-            # Episode end: log and break
+            # 7. Episode end: log and break
             if done:
                 print(f"Run: {run}, Epsilon: {agent.exploration_rate:.3f}, Score: {steps}")
                 logger.add_score(steps, run)  # writes CSV + updates score PNG
@@ -148,11 +150,8 @@ def evaluate(model_path: str | None = None,
         steps = 0
 
         while not done:
-            # Greedy action (no exploration in evaluation)
-            with torch.no_grad():
-                s_t = torch.as_tensor(state, dtype=torch.float32, device=agent.device)  # [1, obs_dim]
-                q = agent.online(s_t)[0].cpu().numpy()                                  # [act_dim]
-                action = int(np.argmax(q))
+            # Greedy action (no exploration) by calling act() in evaluation mode
+            action = agent.act(state, evaluation_mode=True)
 
             # Step env forward
             next_state, _, terminated, truncated, _ = env.step(action)
@@ -175,5 +174,5 @@ def evaluate(model_path: str | None = None,
 
 if __name__ == "__main__":
     # Example: quick training then a short evaluation
-    agent = train(num_episodes=10, terminal_penalty=True)
-    evaluate(model_path="models/cartpole_dqn.torch", algorithm="dqn", episodes=5, render=True, fps=60)
+    agent = train(num_episodes=500, terminal_penalty=True)
+    evaluate(model_path="models/cartpole_dqn.torch", algorithm="dqn", episodes=100, render=False, fps=60)

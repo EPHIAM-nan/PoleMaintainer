@@ -1,4 +1,3 @@
-# agents/cartpole_dqn.py
 """
 PyTorch DQN for CartPole (Gymnasium)
 ------------------------------------
@@ -9,8 +8,9 @@ PyTorch DQN for CartPole (Gymnasium)
 
 Reading guide for students:
 - Start from DQNSolver.__init__ to see how the agent is constructed.
-- Then read act() (how actions are chosen), remember() (how transitions are stored),
-  and experience_replay() (how we learn from past transitions).
+- Then read act() (how actions are chosen), and the new step() method
+  (how the agent internalizes experience and learns).
+- experience_replay() contains the core optimization logic.
 """
 
 from __future__ import annotations
@@ -47,19 +47,27 @@ TARGET_UPDATE_STEPS = 500
 
 
 class QNet(nn.Module):
-    """A simple fully-connected MLP that approximates Q(s, a)."""
+    """
+    A simple fully connected MLP to approximate Q(s, a).
+    """
 
     def __init__(self, obs_dim: int, act_dim: int):
         super().__init__()
-        # Architecture: 2 hidden layers with ReLU activations
         self.net = nn.Sequential(
-            nn.Linear(obs_dim, 128),
+            nn.Linear(obs_dim, 64), 
             nn.ReLU(),
-            nn.Linear(128, 128),
-            nn.ReLU(),
-            nn.Linear(128, act_dim),  # outputs Q-values for each discrete action
+            nn.Linear(64, act_dim), 
         )
-        # Xavier initialization for linear layers tends to help stability
+        
+        # original better NNet:
+        # self.net = nn.Sequential(
+        #     nn.Linear(obs_dim, 128),
+        #     nn.ReLU(),
+        #     nn.Linear(128, 128),
+        #     nn.ReLU(),
+        #     nn.Linear(128, act_dim),
+        # )
+        
         for m in self.modules():
             if isinstance(m, nn.Linear):
                 nn.init.xavier_uniform_(m.weight)
@@ -83,6 +91,7 @@ class ReplayBuffer:
     def push(self, s, a, r, s2, done):
         s = np.asarray(s)
         s2 = np.asarray(s2)
+        # Squeeze arrays that are [1, obs_dim] down to [obs_dim] for storage
         if s.ndim == 2 and s.shape[0] == 1:
             s = s.squeeze(0)
         if s2.ndim == 2 and s2.shape[0] == 1:
@@ -135,7 +144,7 @@ class DQNSolver:
       - ε-greedy exploration
 
     Public API used by train.py:
-      act(), remember(), experience_replay(), save(), load(), update_target()
+      act(), step(), save(), load(), update_target()
     """
 
     def __init__(self, observation_space: int, action_space: int, cfg: DQNConfig | None = None):
@@ -165,16 +174,21 @@ class DQNSolver:
     # -----------------------------
     # Acting & memory
     # -----------------------------
-    def act(self, state_np: np.ndarray) -> int:
+    def act(self, state_np: np.ndarray, evaluation_mode: bool = False) -> int:
         """
         ε-greedy action selection.
-        - With probability ε: choose a random action (exploration).
-        - Otherwise: choose argmax_a Q_online(s, a) (exploitation).
+        - If evaluation_mode=True, always acts greedily (exploitation).
+        - If evaluation_mode=False (training):
+            - With probability ε: choose a random action (exploration).
+            - Otherwise: choose argmax_a Q_online(s, a) (exploitation).
         Inputs:
           state_np: numpy array with shape [1, obs_dim]
         """
-        if np.random.rand() < self.exploration_rate:
+        # 1. Exploration (only during training)
+        if not evaluation_mode and np.random.rand() < self.exploration_rate:
             return random.randrange(self.act_dim)
+
+        # 2. Exploitation (greedy action)
         with torch.no_grad():
             s_np = np.asarray(state_np, dtype=np.float32)
             if s_np.ndim == 1:
@@ -186,14 +200,25 @@ class DQNSolver:
 
     def remember(self, state: np.ndarray, action: int, reward: float, next_state: np.ndarray, done: bool):
         """Store a single transition (s, a, r, s', done) into replay buffer."""
+        # The ReplayBuffer's push() method handles squeezing [1, obs_dim] arrays
         self.memory.push(state, action, reward, next_state, done)
 
     # -----------------------------
     # Learning from replay
     # -----------------------------
+    def step(self, state: np.ndarray, action: int, reward: float, next_state: np.ndarray, done: bool):
+        """
+        This is the main "learning" hook called by train.py
+        1. Store the transition (s,a,r,s',done) in the replay buffer.
+        2. Trigger one learning step (experience_replay) which samples from the buffer.
+        """
+        self.remember(state, action, reward, next_state, done)
+        self.experience_replay()
+
     def experience_replay(self):
         """
         One training step from replay buffer (vectorized).
+        (This method is now 'private', only called by self.step())
         Steps:
           1) Wait until we have enough transitions and warmup steps.
           2) Sample a mini-batch and build tensors on the right device.
