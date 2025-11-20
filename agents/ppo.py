@@ -323,12 +323,9 @@ class PPOSolver:
         self.buffer.clear()
 
     def compute_gae(self, rewards: np.ndarray, values: np.ndarray, dones: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        Compute Generalized Advantage Estimation (GAE).
-        
-        GAE balances bias and variance in advantage estimation:
-        A_t = δ_t + (γλ)δ_{t+1} + (γλ)²δ_{t+2} + ...
-        where δ_t = r_t + γV(s_{t+1}) - V(s_t)
+        """        
+        A_t = delta_t + (gamma lambda)delta_{t+1} + (gamma lambda)²delta_{t+2} + ...
+        where delta_t = r_t + γV(s_{t+1}) - V(s_t)
         
         Args:
             rewards: array of rewards [T]
