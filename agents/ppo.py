@@ -20,7 +20,7 @@ GAMMA = 0.99
 # λ: GAE parameter for advantage estimation
 GAE_LAMBDA = 0.95
 # Learning rate (Adam)
-LR = 1e-4
+LR = 1e-3
 # Clipping parameter
 CLIP_EPSILON = 0.2
 # Entropy coefficient
@@ -31,7 +31,7 @@ VALUE_COEF = 0.5
 PPO_EPOCHS = 15
 BATCH_SIZE = 64
 # collect before updating
-ROLLOUT_LENGTH = 1024
+ROLLOUT_LENGTH = 128
 # Max gradient norm for clipping
 MAX_GRAD_NORM = 0.5
 
@@ -150,6 +150,8 @@ class PPOConfig:
     gamma: float = GAMMA
     gae_lambda: float = GAE_LAMBDA
     lr: float = LR
+    lr_end: float = 1e-4  # 最终学习率
+    total_timesteps: int = 100000  # 总训练步数，用于计算 lr 衰减
     clip_epsilon: float = CLIP_EPSILON
     entropy_coef: float = ENTROPY_COEF
     value_coef: float = VALUE_COEF
@@ -186,6 +188,14 @@ class PPOSolver:
         
         # 与 train.py 兼容？ (DQN has exploration_rate)
         self.exploration_rate = 0.0  # PPO doesn't use epsilon-greedy
+        
+        # 用于 bootstrap 的状态（初始化为 None，会在 step() 中设置）
+        self._last_next_state = None
+        self._last_done = True  # 初始设为 True，这样如果意外调用 update 会用 last_value=0
+        
+        # 学习率衰减相关
+        self._initial_lr = self.cfg.lr
+        self._lr_end = self.cfg.lr_end
 
     # -----------------------------
     # Acting & memory
@@ -236,6 +246,10 @@ class PPOSolver:
         self.remember(state, action, reward, done)
         self.steps += 1
         
+        # 保存 next_state 用于计算 last_value（bootstrap）
+        self._last_next_state = next_state
+        self._last_done = done
+        
         # Update when rollout buffer is full or episode ends
         if done:
             self.episodes += 1
@@ -250,10 +264,11 @@ class PPOSolver:
         Perform PPO update using collected trajectories.
         Steps:
           1) Get all transitions from buffer
-          2) Compute advantages using GAE
-          3) Normalize advantages
-          4) Perform multiple epochs of minibatch updates
-          5) Clear buffer
+          2) Compute last_value for bootstrap (关键修复！)
+          3) Compute advantages using GAE
+          4) Normalize advantages
+          5) Perform multiple epochs of minibatch updates
+          6) Clear buffer
         """
         if len(self.buffer) == 0:
             return
@@ -261,8 +276,22 @@ class PPOSolver:
         # Get data from buffer
         states, actions, rewards, values, old_log_probs, dones = self.buffer.get()
 
+        # 关键修复：计算 last_value 用于 bootstrap
+        # 如果最后一步是 episode 终点，last_value = 0
+        # 否则，用 network 估计 next_state 的 value
+        if self._last_done:
+            last_value = 0.0
+        else:
+            with torch.no_grad():
+                next_state_np = np.asarray(self._last_next_state, dtype=np.float32)
+                if next_state_np.ndim == 1:
+                    next_state_np = next_state_np[None, :]
+                next_state_t = torch.as_tensor(next_state_np, dtype=torch.float32, device=self.device)
+                _, next_value = self.network(next_state_t)
+                last_value = next_value.cpu().numpy().squeeze()
+
         # Compute advantages and returns using GAE
-        advantages, returns = self.compute_gae(rewards, values, dones)
+        advantages, returns = self.compute_gae(rewards, values, dones, last_value)
 
         # Convert to tensors
         states_t = torch.as_tensor(states, dtype=torch.float32, device=self.device)
@@ -321,8 +350,18 @@ class PPOSolver:
 
         # Clear buffer after update
         self.buffer.clear()
+        
+        # 线性学习率衰减
+        self._update_learning_rate()
 
-    def compute_gae(self, rewards: np.ndarray, values: np.ndarray, dones: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def _update_learning_rate(self):
+        """线性衰减学习率: lr = lr_start + (lr_end - lr_start) * progress"""
+        progress = min(1.0, self.steps / self.cfg.total_timesteps)
+        new_lr = self._initial_lr + (self._lr_end - self._initial_lr) * progress
+        for param_group in self.optim.param_groups:
+            param_group['lr'] = new_lr
+
+    def compute_gae(self, rewards: np.ndarray, values: np.ndarray, dones: np.ndarray, last_value: float = 0.0) -> Tuple[np.ndarray, np.ndarray]:
         """        
         A_t = delta_t + (gamma lambda)delta_{t+1} + (gamma lambda)²delta_{t+2} + ...
         where delta_t = r_t + γV(s_{t+1}) - V(s_t)
@@ -331,6 +370,7 @@ class PPOSolver:
             rewards: array of rewards [T]
             values: array of value estimates [T]
             dones: array of done flags [T]
+            last_value: V(s_T) for bootstrap when buffer ends at non-terminal state
         
         Returns:
             advantages: array of advantages [T]
@@ -341,18 +381,21 @@ class PPOSolver:
         
         for t in reversed(range(len(rewards))):
             if t == len(rewards) - 1:
-                next_value = 0  # Bootstrap value is 0 for terminal state
+                # 关键修复：使用传入的 last_value 而不是总是 0
+                next_value = last_value
+                # 如果最后一步是终结状态，last_gae 也需要重置
+                next_non_terminal = 1.0 - dones[t]
             else:
                 next_value = values[t + 1]
-            
-            # Mask next_value if episode ended
-            mask = 1.0 - dones[t]
+                next_non_terminal = 1.0 - dones[t]
             
             # TD error: δ_t = r_t + γV(s_{t+1}) - V(s_t)
-            delta = rewards[t] + self.cfg.gamma * next_value * mask - values[t]
+            # 当 done[t]=1 时，next_value 不应该被使用（episode 终止）
+            delta = rewards[t] + self.cfg.gamma * next_value * next_non_terminal - values[t]
             
             # GAE accumulation
-            last_gae = delta + self.cfg.gamma * self.cfg.gae_lambda * mask * last_gae
+            # 当 done[t]=1 时，不应该传播之前的 advantage
+            last_gae = delta + self.cfg.gamma * self.cfg.gae_lambda * next_non_terminal * last_gae
             advantages[t] = last_gae
         
         # Returns are advantages + values
