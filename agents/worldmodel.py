@@ -36,23 +36,23 @@ SEED = 42
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Data collection
-DATA_EPISODES = 10000
+DATA_EPISODES = 1000
 # CartPole-v1 truncates at 500 steps; keep collection horizon consistent.
 DATA_MAX_STEPS = 500
 DATASET_PATH = os.path.join("bc_data", "world_model_dataset.npz")
 
 # World model (dynamics)
-WORLD_HIDDEN = 128
+WORLD_HIDDEN = 64
 WORLD_LR = 1e-3
 WORLD_LR_FINAL = 1e-4
-WORLD_EPOCHS = 30
+WORLD_EPOCHS = 200
 WORLD_BATCH = 128
 WORLD_PRED_HORIZON = 10
 WORLD_MODEL_PATH = os.path.join(MODEL_DIR, "wm_dynamics.torch")
 WORLD_LOSS_PNG = os.path.join(os.path.dirname(__file__), "wm_dynamics.png")
 
 # Controller (policy) + CEM
-CONTROLLER_HIDDEN = 16
+CONTROLLER_HIDDEN = 8
 CEM_ITERATIONS = 60
 CEM_POP_SIZE = 128
 CEM_ELITE_FRAC = 0.1
@@ -774,8 +774,8 @@ if __name__ == "__main__":
 
 	s, a, s2, init_s, dones = collect_random_dataset()
 	# s, a, s2, init_s, dones = load_dataset("bc_data/world_model_dataset.npz")
-	world = train_world_model(s, a, s2, dones)
-	world = load_world_model(WORLD_MODEL_PATH)
-	ctrl = train_controller_cem(world, init_s)
+	# world = train_world_model(s, a, s2, dones)
+	# world = load_world_model(WORLD_MODEL_PATH)
+	# ctrl = train_controller_cem(world, init_s)
 
 	evaluate(controller_path=CONTROLLER_PATH, episodes=EVAL_EPISODES, render=False)
