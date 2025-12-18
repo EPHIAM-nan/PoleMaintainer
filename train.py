@@ -13,11 +13,13 @@ Student reading map:
 from __future__ import annotations
 import os
 import time
+import argparse
 import numpy as np
 import gymnasium as gym
 import torch
 
 from agents.cartpole_dqn import DQNSolver, DQNConfig
+from agents.bcq import train_bcq as train_bcq_offline, evaluate as evaluate_bcq, collect_bcq_dataset
 from scores.score_logger import ScoreLogger
 
 ENV_NAME = "CartPole-v1"
@@ -173,6 +175,79 @@ def evaluate(model_path: str | None = None,
 
 
 if __name__ == "__main__":
-    # Example: quick training then a short evaluation
-    agent = train(num_episodes=500, terminal_penalty=True)
-    evaluate(model_path="models/cartpole_dqn.torch", algorithm="dqn", episodes=100, render=False, fps=60)
+    parser = argparse.ArgumentParser(description="CartPole training / evaluation entrypoint")
+    parser.add_argument(
+        "--agent",
+        "--algorithm",
+        dest="agent",
+        choices=["dqn", "bcq"],
+        default="dqn",
+        help="选择使用的算法/agent（dqn 或 bcq）",
+    )
+    parser.add_argument(
+        "--mode",
+        choices=["train", "eval", "train_eval"],
+        default="train_eval",
+        help="运行模式：仅训练(train)、仅评估(eval) 或 先训练再评估(train_eval)",
+    )
+    parser.add_argument(
+        "--episodes",
+        type=int,
+        default=500,
+        help="在线训练 DQN 时的训练回合数（对 BCQ 无效）",
+    )
+    parser.add_argument(
+        "--eval-episodes",
+        type=int,
+        default=100,
+        help="评估时运行的回合数",
+    )
+    parser.add_argument(
+        "--render",
+        action="store_true",
+        help="评估时是否渲染环境",
+    )
+    args = parser.parse_args()
+
+    if args.agent == "dqn":
+        # 在线 DQN 训练 + 评估（保持原有行为，只是通过命令行参数控制）
+        if args.mode in ("train", "train_eval"):
+            train(num_episodes=args.episodes, terminal_penalty=True)
+        if args.mode in ("eval", "train_eval"):
+            evaluate(
+                model_path=MODEL_PATH,
+                algorithm="dqn",
+                episodes=args.eval_episodes,
+                render=args.render,
+                fps=60,
+            )
+
+    elif args.agent == "bcq":
+        # BCQ 是离线算法：先用专家策略收集数据，再离线训练，然后评估
+        dataset_path = "./bc_data/ppo_bcq_dataset.npz"
+        model_path = "./models/cartpole_bcq.torch"
+
+        if args.mode in ("train", "train_eval"):
+            # 如果离线数据集还不存在，先自动调用数据收集
+            if not os.path.exists(dataset_path):
+                print("[Main] BCQ 数据集未找到，开始用 PPO 专家收集离线数据...")
+                collect_bcq_dataset(
+                    data_dir="./bc_data",
+                    episode_num=100,
+                    expert="ppo",
+                    model_path="models/cartpole_ppo.torch",
+                )
+
+            print("[Main] 开始离线训练 BCQ agent...")
+            train_bcq_offline(
+                dataset_path=dataset_path,
+                model_path=model_path,
+            )
+
+        if args.mode in ("eval", "train_eval"):
+            print("[Main] 使用训练好的 BCQ 模型进行评估...")
+            evaluate_bcq(
+                model_path=model_path,
+                episodes=args.eval_episodes,
+                render=args.render,
+            )
