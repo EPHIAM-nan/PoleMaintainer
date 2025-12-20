@@ -28,7 +28,7 @@ if __name__ == "__main__":
     print("开始收集BCQ数据集（包含完整的transitions: states, actions, rewards, next_states, dones）...\n")
     
     collect_bcq_dataset(
-        data_dir="./bc_data",
+        data_dir="./data",
         episode_num=100,  # 收集100个episode的数据
         expert="ppo",
         model_path=ppo_model_path
@@ -36,7 +36,7 @@ if __name__ == "__main__":
     
     print("\n" + "=" * 60)
     print("数据收集完成！")
-    print("数据集已保存到: ./bc_data/ppo_bcq_dataset.npz")
+    print("数据集已保存到: ./data/ppo_bcq_dataset.npz")
     print("现在可以运行 train_bcq() 来训练BCQ agent了。")
     print("=" * 60)
 

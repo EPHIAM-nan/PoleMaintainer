@@ -47,7 +47,7 @@ PERTURB_LR = 1e-3
 # Data Collection
 # -----------------------------
 def collect_bcq_dataset(
-    data_dir: str = "./bc_data",
+    data_dir: str = "./data",
     episode_num: int = 100,
     expert: str = "ppo",
     model_path: str = "models/cartpole_ppo.torch"
@@ -517,7 +517,7 @@ def train_vae(vae: VAE, optimizer: optim.Optimizer, states: np.ndarray, actions:
 
 
 def train_bcq(
-    dataset_path: str = "./bc_data/ppo_bcq_dataset.npz",
+    dataset_path: str = "./data/ppo_bcq_dataset.npz",
     model_path: str = "./models/cartpole_bcq.torch",
     cfg: BCQConfig | None = None,
     eval_freq: int = 20,
@@ -958,11 +958,11 @@ def plot_evaluation_results(scores: list, save_path: str = "./scores/bcq_evaluat
 if __name__ == "__main__":
     # Example usage
     # Step 1: Collect dataset (if not exists)
-    dataset_path = "./bc_data/ppo_bcq_dataset.npz"
+    dataset_path = "./data/ppo_bcq_dataset.npz"
     if not os.path.exists(dataset_path):
         print("[BCQ] Collecting dataset...")
         collect_bcq_dataset(
-            data_dir="./bc_data",
+            data_dir="./data",
             episode_num=100,
             expert="ppo",
             model_path="models/cartpole_ppo.torch"

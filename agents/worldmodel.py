@@ -39,7 +39,7 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 DATA_EPISODES = 1000
 # CartPole-v1 truncates at 500 steps; keep collection horizon consistent.
 DATA_MAX_STEPS = 500
-DATASET_PATH = os.path.join("bc_data", "world_model_dataset.npz")
+DATASET_PATH = os.path.join("data", "world_model_dataset.npz")
 
 # World model (dynamics)
 WORLD_HIDDEN = 64
@@ -773,7 +773,7 @@ if __name__ == "__main__":
 	# End-to-end run: collect data -> train M -> train C -> evaluate in env
 
 	s, a, s2, init_s, dones = collect_random_dataset()
-	# s, a, s2, init_s, dones = load_dataset("bc_data/world_model_dataset.npz")
+	# s, a, s2, init_s, dones = load_dataset("data/world_model_dataset.npz")
 	# world = train_world_model(s, a, s2, dones)
 	# world = load_world_model(WORLD_MODEL_PATH)
 	# ctrl = train_controller_cem(world, init_s)

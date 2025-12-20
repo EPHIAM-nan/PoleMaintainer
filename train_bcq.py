@@ -20,7 +20,7 @@ if __name__ == "__main__":
     print("=" * 60)
     
     # Check if dataset exists
-    dataset_path = "./bc_data/ppo_bcq_dataset.npz"
+    dataset_path = "./data/ppo_bcq_dataset.npz"
     if not os.path.exists(dataset_path):
         print(f"错误: 找不到数据集文件 {dataset_path}")
         print("请先运行 collect_bcq_data.py 来收集数据。")

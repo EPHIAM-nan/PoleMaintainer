@@ -17,7 +17,7 @@ BATCH_SIZE = 64
 # =========
 
 def generate_data(
-    data_dir: str = "./bc_data",
+    data_dir: str = "./data",
     episode_num: int = 100, # one episode 500 steps, dataset = episode_num * 500 
     expert: str = "ppo", # 装个样子☝️🤓
     model_path: str = "models/cartpole_ppo.torch"
@@ -132,7 +132,7 @@ def train_bc():
     optimizer = optim.Adam(model.parameters(), lr=1e-4)
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=20)
 
-    data = np.load("./bc_data/ppo_demonstrations.npz")
+    data = np.load("./data/ppo_demonstrations.npz")
     states = data["states"]
     actions = data["actions"]
 

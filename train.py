@@ -227,7 +227,7 @@ if __name__ == "__main__":
 
     elif args.agent == "bcq":
         # BCQ 是离线算法：先用专家策略收集数据，再离线训练，然后评估
-        dataset_path = "./bc_data/ppo_bcq_dataset.npz"
+        dataset_path = "./data/ppo_bcq_dataset.npz"
         model_path = "./models/cartpole_bcq.torch"
 
         if args.mode in ("train", "train_eval"):
@@ -235,7 +235,7 @@ if __name__ == "__main__":
             if not os.path.exists(dataset_path):
                 print("[Main] BCQ 数据集未找到，开始用 PPO 专家收集离线数据...")
                 collect_bcq_dataset(
-                    data_dir="./bc_data",
+                    data_dir="./data",
                     episode_num=100,
                     expert="ppo",
                     model_path="models/cartpole_ppo.torch",
