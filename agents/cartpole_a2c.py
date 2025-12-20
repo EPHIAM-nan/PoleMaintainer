@@ -8,10 +8,10 @@ from dataclasses import dataclass
 @dataclass
 class A2CConfig:
     gamma: float = 0.99
-    actor_lr: float = 1e-3
-    critic_lr: float = 1e-2
+    actor_lr: float = 1e-2
+    critic_lr: float = 1e-1
     hidden_dim: int = 128
-    target_weight: float = 0.95 # Soft update weight (tau)
+    entropy_coef: float = 0.001
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
 
 class PolicyNet(nn.Module):
@@ -40,12 +40,9 @@ class A2CSolver(nn.Module):
         self.cfg = cfg or A2CConfig()
         self.gamma = self.cfg.gamma
         self.device = torch.device(self.cfg.device)
-        self.target_weight = self.cfg.target_weight
         
         self.actor = PolicyNet(obs_dim, self.cfg.hidden_dim, act_dim).to(self.device)
         self.critic = VNet(obs_dim, self.cfg.hidden_dim).to(self.device)
-        self.target = VNet(obs_dim, self.cfg.hidden_dim).to(self.device)
-        self.target.load_state_dict(self.critic.state_dict())
 
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=self.cfg.actor_lr)
         self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=self.cfg.critic_lr)
@@ -94,27 +91,34 @@ class A2CSolver(nn.Module):
         next_states = torch.tensor(np.array(transition_dict['next_states']), dtype=torch.float).to(self.device)
         dones = torch.tensor(transition_dict['dones'], dtype=torch.float).view(-1, 1).to(self.device)
 
-        # Critic loss 
-        td_target = rewards + self.gamma * self.target(next_states) * (1-dones)
-        critic_loss = torch.mean(F.mse_loss(self.critic(states), td_target.detach()))
+        # TD Target = r + gamma * V(s') * (1 - done)
+        next_values = self.critic(next_states)
+        td_target = rewards + self.gamma * next_values * (1 - dones)
+        current_values = self.critic(states)
+        
+        critic_loss = F.mse_loss(current_values, td_target.detach())
 
-        # Actor loss 
-        td_error = td_target - self.critic(states)  
-        probs = self.actor(states).gather(1, actions)
-        log_probs = torch.log(probs)
-        actor_loss = torch.mean(-log_probs * td_error.detach())
+        # 2. calculate Actor Loss
+        td_error = td_target - current_values
+        
+        probs = self.actor(states)
+        dist = torch.distributions.Categorical(probs)
+        log_probs = dist.log_prob(actions.squeeze())
+        
+        # Calculate entropy: H(π(·|s))
+        dist_entropy = dist.entropy()
+        
+        # Actor Loss = -mean(log_prob * advantage) - beta * mean(entropy)
+        # Subtracting entropy term to maximize entropy (since Loss is minimized)
+        actor_loss = torch.mean(-log_probs * td_error.detach().squeeze() - self.cfg.entropy_coef * dist_entropy)
 
+        # 3. Backpropagation
         self.actor_optimizer.zero_grad()
         self.critic_optimizer.zero_grad()
-        actor_loss.backward()           
-        critic_loss.backward()      
-        self.actor_optimizer.step()     
-        self.critic_optimizer.step()    
-
-        # Soft update target network
-        tau = self.target_weight  
-        for param_target, param_critic in zip(self.target.parameters(), self.critic.parameters()):
-            param_target.data.copy_(param_target.data * tau + param_critic.data * (1.0 - tau))
+        actor_loss.backward()
+        critic_loss.backward()
+        self.actor_optimizer.step()
+        self.critic_optimizer.step()
 
     def save(self, path):
         torch.save(self.state_dict(), path)
