@@ -3,6 +3,8 @@
 
 # 实现算法
 
+以下为实现算法的代码及模型位置。测试方法见 [这一节](#evaluate-一键评测) 。
+
 ## Online
 
 | Method | code | model |
@@ -27,6 +29,7 @@
 `train.py` 主要专注于 DQN 的训练，且如果要使其支持所有模型的训练需要修改的难度较大。于是我们组采用了“直接修改`train.py`+不 commit“的方式，因此部分模型的训练脚本丢失(标记为lost)。已有的训练程序：
 
 | Method | train script | 
+| --- | --- | 
 | DQN | `train.py` |
 | PPO | `trainppo.py` |
 | A2C | lost |
