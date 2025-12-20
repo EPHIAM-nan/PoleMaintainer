@@ -178,6 +178,7 @@ def evaluate(model_path: str | None = None,
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="CartPole training / evaluation entrypoint")
     parser.add_argument(
+        "-a",
         "--agent",
         "--algorithm",
         dest="agent",
@@ -192,6 +193,7 @@ if __name__ == "__main__":
         help="运行模式：仅训练(train)、仅评估(eval) 或 先训练再评估(train_eval)",
     )
     parser.add_argument(
+        "-k",
         "--episodes",
         type=int,
         default=500,
