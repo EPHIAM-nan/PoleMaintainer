@@ -70,7 +70,8 @@ def train(num_episodes: int = 200, terminal_penalty: bool = True) -> DQNSolver:
             done = terminated or truncated
 
             # 3. Optional small terminal penalty (encourage agent to avoid failure)
-            if terminal_penalty and done:
+            #    Only penalize if it actually failed (terminated), not if it reached the step limit (truncated)
+            if terminal_penalty and terminated and not truncated:
                 reward = -1.0
             
             # 4. Reshape next_state for agent and next loop iteration

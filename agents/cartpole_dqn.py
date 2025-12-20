@@ -29,21 +29,21 @@ import torch.optim as optim
 # Default Hyperparameters
 # -----------------------------
 # γ: discount factor for future rewards
-GAMMA = 0.99
+GAMMA = 0.995
 # Learning rate for Adam optimizer
-LR = 1e-3
+LR = 5e-4
 # Mini-batch size sampled from the replay buffer
-BATCH_SIZE = 32
+BATCH_SIZE = 64
 # Replay buffer capacity (number of transitions stored)
-MEMORY_SIZE = 50_000
+MEMORY_SIZE = 20_000
 # Steps to warm up the buffer with random-ish actions before training
 INITIAL_EXPLORATION_STEPS = 1_000
 # ε schedule: start, final, multiplicative decay per update step
 EPS_START = 1.0
-EPS_END = 0.05
-EPS_DECAY = 0.995
+EPS_END = 0.01
+EPS_DECAY = 0.999
 # How often (in steps) to hard-copy online -> target network
-TARGET_UPDATE_STEPS = 500
+TARGET_UPDATE_STEPS = 1000
 
 
 class QNet(nn.Module):
@@ -54,19 +54,12 @@ class QNet(nn.Module):
     def __init__(self, obs_dim: int, act_dim: int):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(obs_dim, 64), 
+            nn.Linear(obs_dim, 128),
             nn.ReLU(),
-            nn.Linear(64, act_dim), 
+            nn.Linear(128, 128),
+            nn.ReLU(),
+            nn.Linear(128, act_dim),
         )
-        
-        # original better NNet:
-        # self.net = nn.Sequential(
-        #     nn.Linear(obs_dim, 128),
-        #     nn.ReLU(),
-        #     nn.Linear(128, 128),
-        #     nn.ReLU(),
-        #     nn.Linear(128, act_dim),
-        # )
         
         for m in self.modules():
             if isinstance(m, nn.Linear):
@@ -226,11 +219,10 @@ class DQNSolver:
                y = r + mask * γ * max_a' Q_target(s', a')
           4) Compute current Q(s,a) from online network and MSE loss to targets.
           5) Backprop + optimizer step.
-          6) Decay ε and periodically hard-update target network.
+          6) Decay ε and soft-update target network.
         """
         # 1) Warmup and capacity check: skip updates if insufficient data
         if len(self.memory) < max(self.cfg.batch_size, self.cfg.initial_exploration):
-            self._decay_eps()  # still decay a bit each step
             return
 
         # 2) Sample and convert to tensors
@@ -261,9 +253,8 @@ class DQNSolver:
         # 6) Exploration decay
         self._decay_eps()
 
-        # Hard copy online → target every N steps
-        if self.steps % self.cfg.target_update == 0:
-            self.update_target(hard=True)
+        # Soft update target network every step
+        self.update_target(hard=False, tau=0.01)
 
     def update_target(self, hard: bool = True, tau: float = 0.005):
         """
