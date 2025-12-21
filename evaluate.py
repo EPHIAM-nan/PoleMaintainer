@@ -51,7 +51,7 @@ def get_agent(agent_type, obs_dim, act_dim, model_path):
             
     return agent
 
-def run_evaluation(agent, agent_type, episodes=10, render=False, fps=60):
+def run_evaluation(agent, agent_type, episodes=10, render=False, fps=60, seed=114514):
     """Run the evaluation loop."""
     env_name = "CartPole-v1"
     render_mode = "human" if render else None
@@ -65,7 +65,7 @@ def run_evaluation(agent, agent_type, episodes=10, render=False, fps=60):
     print(f"[Eval] Render: {render}, Episodes: {episodes}")
 
     for ep in range(1, episodes + 1):
-        state, _ = env.reset(seed=10000 + ep)
+        state, _ = env.reset(seed= seed + ep)
         done = False
         steps = 0
         
@@ -111,6 +111,8 @@ if __name__ == "__main__":
                         help="Render the environment")
     parser.add_argument("-f", "--fps", type=int, default=60, 
                         help="Target FPS for rendering (default: 60)")
+    parser.add_argument("-s", "--seed", type=int, default=114514,
+                        help="Random seed for evaluation (default: 114514)")
     
     args = parser.parse_args()
     
@@ -140,7 +142,7 @@ if __name__ == "__main__":
             agent = get_agent(agent_type, obs_dim, act_dim, model_path)
             
             # Run evaluation
-            avg_score = run_evaluation(agent, agent_type, episodes=args.episodes, render=args.render, fps=args.fps)
+            avg_score = run_evaluation(agent, agent_type, episodes=args.episodes, render=args.render, fps=args.fps, seed=args.seed)
             results[agent_type] = f"{avg_score:.2f}"
             
         except Exception as e:

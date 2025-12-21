@@ -40,7 +40,7 @@
 
 # Evaluate 一键评测
 
-`evaluate.py` 可以在 cartpole 环境中测试 100 episodes 内的平均分。
+`evaluate.py` 可以在 cartpole 环境中测试 100 episodes 内的平均分。（可以在文件开头通过修改 SEED 常量改种子）
 
 **使用方法**
 
@@ -61,4 +61,20 @@ python evaluate --agent all
 | BC | bc |
 | BCQ | bcq |
 | World Model | wm |
+
+可以使用 `--seed` 参数调整随机种子。`--seed 42` 下测试结果为
+
+```
+==============================
+Agent Type      | Average Score  
+------------------------------
+dqn             | 500.00         
+ppo             | 500.00         
+a2c             | 500.00         
+rainbow         | 497.05         
+bc              | 500.00         
+bcq             | 500.00         
+wm              | 500.00         
+==============================
+```
 
