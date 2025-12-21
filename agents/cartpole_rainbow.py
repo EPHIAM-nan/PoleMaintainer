@@ -12,10 +12,10 @@ from collections import deque
 @dataclass
 class RainbowConfig:
     gamma: float = 0.99
-    lr: float = 1e-4  # Rainbow通常需要较小的学习率
+    lr: float = 1e-4  # Rainbow need low LR
     batch_size: int = 32
     memory_size: int = 20000
-    target_update: int = 200  # 硬更新频率
+    target_update: int = 200  # hard update
     
     # Noisy Nets
     sigma_init: float = 0.5
@@ -31,7 +31,7 @@ class RainbowConfig:
     # Prioritized Experience Replay
     alpha: float = 0.6
     beta_start: float = 0.4
-    beta_frames: int = 20000 # beta 线性增长到 1.0 所需步数
+    beta_frames: int = 20000 # beta -> 1.0 over these frames
     
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -247,10 +247,8 @@ class RainbowSolver(nn.Module):
             state_0, action_0, reward_n, next_state_n, done_n = self._get_n_step_info()
             self.memory.push(state_0, action_0, reward_n, next_state_n, done_n)
         
-        # 如果 episode 结束，清空剩余 buffer
+        # clear buffer when episode ends
         if done and len(self.n_step_buffer) > 0:
-             # 为了简单起见，CartPole这种短周期的环境，我们可以选择丢弃或者清空
-             # 严谨做法是把 buffer 里剩下的都存进去，这里简化处理直接清空
              self.n_step_buffer.clear()
 
         # Update
@@ -264,7 +262,7 @@ class RainbowSolver(nn.Module):
         self.step_count += 1
 
     def _get_n_step_info(self):
-        """计算 N-step return"""
+        """calculate N-step return"""
         reward, next_state, done = 0, None, False
         for i in range(self.cfg.n_step):
             _, _, r, n_s, d = self.n_step_buffer[i]

@@ -1,7 +1,6 @@
 """
-PyTorch BCQ (Batch Constrained Q-learning) for CartPole (Gymnasium)
+BCQ (Batch Constrained Q-learning) for CartPole (Gymnasium)
 --------------------------------------------------------------------
-- Offline reinforcement learning algorithm
 - VAE for learning action distribution from dataset
 - Perturbation network for action refinement
 - Q-network with target network for value estimation
@@ -23,11 +22,8 @@ import matplotlib
 matplotlib.use("Agg")  # Use non-interactive backend
 import matplotlib.pyplot as plt
 
-# Import PPO for data collection (will be imported inside function, same as bc.py)
-
-
 # -----------------------------
-# Default Hyperparameters
+# Hyperparameters
 # -----------------------------
 GAMMA = 0.99
 LR = 1e-3
@@ -44,7 +40,7 @@ PERTURB_LR = 1e-3
 
 
 # -----------------------------
-# Data Collection
+# Data Collection // same as BC
 # -----------------------------
 def collect_bcq_dataset(
     data_dir: str = "./data",
@@ -688,9 +684,8 @@ def train_bcq(
         q_losses.append(avg_q_loss)
         perturb_losses.append(avg_perturb_loss)
         
-        # 定期评估模型性能
+        # evaluate performance
         if (epoch + 1) % eval_freq == 0 or epoch == 0:
-            # 快速评估
             agent.eval()
             eval_scores = []
             for _ in range(eval_episodes):
@@ -776,7 +771,7 @@ def train_bcq(
     plt.close()
     print(f"[BCQ Training] Training curves saved to ./models/bcq_training_losses.png")
     
-    # 绘制训练过程中的性能变化图
+    # Performance variation plot
     if training_scores:
         plot_training_progress(training_epochs, training_scores, 
                               save_path="./scores/bcq_training_progress.png")
@@ -784,14 +779,15 @@ def train_bcq(
     return agent
 
 
+# same in score_logger.py
 def plot_training_progress(epochs: list, scores: list, save_path: str = "./scores/bcq_training_progress.png"):
     """
-    绘制训练过程中的性能变化图（类似在线学习的训练进度图）
+    Plot the performance variation during training (similar to online learning training progress plot)
     
     Args:
-        epochs: 评估时的epoch列表
-        scores: 对应的评估分数列表
-        save_path: 保存路径
+        epochs: List of epochs when evaluation was performed
+        scores: Corresponding evaluation scores list
+        save_path: Save path
     """
     if not scores or len(scores) == 0:
         return
@@ -800,10 +796,10 @@ def plot_training_progress(epochs: list, scores: list, save_path: str = "./score
     
     plt.figure(figsize=(10, 6))
     
-    # 绘制评估分数
+    # score
     plt.plot(epochs, scores, 'b-o', linewidth=2, markersize=6, label="Evaluation Score")
     
-    # 绘制移动平均
+    # average
     if len(scores) > 1:
         window = min(3, len(scores) // 2)
         if window > 1:
@@ -814,12 +810,12 @@ def plot_training_progress(epochs: list, scores: list, save_path: str = "./score
             plt.plot(epochs, moving_avg, 'r--', linewidth=2, alpha=0.7, 
                     label=f"Moving Average (window={window})")
     
-    # 绘制目标线
+    # target
     goal = 475
     plt.axhline(y=goal, color='orange', linestyle=':', linewidth=2, 
                 label=f"Goal ({goal} Avg)")
     
-    # 绘制最终平均线
+    # final
     if len(scores) > 0:
         final_avg = np.mean(scores[-min(5, len(scores)):])
         plt.axhline(y=final_avg, color='g', linestyle='--', linewidth=2, 

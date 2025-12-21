@@ -150,7 +150,7 @@ class PPOConfig:
     gamma: float = GAMMA
     gae_lambda: float = GAE_LAMBDA
     lr: float = LR
-    lr_end: float = 1e-4  # 最终学习率
+    lr_end: float = 1e-4  # Final LR
     total_timesteps: int = 100000  # 总训练步数，用于计算 lr 衰减
     clip_epsilon: float = CLIP_EPSILON
     entropy_coef: float = ENTROPY_COEF
@@ -246,7 +246,7 @@ class PPOSolver:
         self.remember(state, action, reward, done)
         self.steps += 1
         
-        # 保存 next_state 用于计算 last_value（bootstrap）
+        # save next_state for last_value（bootstrap）
         self._last_next_state = next_state
         self._last_done = done
         
@@ -264,7 +264,7 @@ class PPOSolver:
         Perform PPO update using collected trajectories.
         Steps:
           1) Get all transitions from buffer
-          2) Compute last_value for bootstrap (关键修复！)
+          2) Compute last_value for bootstrap
           3) Compute advantages using GAE
           4) Normalize advantages
           5) Perform multiple epochs of minibatch updates
@@ -276,9 +276,7 @@ class PPOSolver:
         # Get data from buffer
         states, actions, rewards, values, old_log_probs, dones = self.buffer.get()
 
-        # 关键修复：计算 last_value 用于 bootstrap
-        # 如果最后一步是 episode 终点，last_value = 0
-        # 否则，用 network 估计 next_state 的 value
+        # calc last_value for bootstrap
         if self._last_done:
             last_value = 0.0
         else:
@@ -350,8 +348,7 @@ class PPOSolver:
 
         # Clear buffer after update
         self.buffer.clear()
-        
-        # 线性学习率衰减
+        # Update learning rate
         self._update_learning_rate()
 
     def _update_learning_rate(self):
@@ -381,9 +378,7 @@ class PPOSolver:
         
         for t in reversed(range(len(rewards))):
             if t == len(rewards) - 1:
-                # 关键修复：使用传入的 last_value 而不是总是 0
                 next_value = last_value
-                # 如果最后一步是终结状态，last_gae 也需要重置
                 next_non_terminal = 1.0 - dones[t]
             else:
                 next_value = values[t + 1]

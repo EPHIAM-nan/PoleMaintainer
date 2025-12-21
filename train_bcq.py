@@ -16,17 +16,16 @@ from scores.score_logger import ScoreLogger
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("BCQ训练脚本")
+    print("Train BCQ")
     print("=" * 60)
     
     # Check if dataset exists
     dataset_path = "./data/ppo_bcq_dataset.npz"
     if not os.path.exists(dataset_path):
-        print(f"错误: 找不到数据集文件 {dataset_path}")
-        print("请先运行 collect_bcq_data.py 来收集数据。")
+        print(f"{dataset_path} not found")
         sys.exit(1)
     
-    # Configuration (可以调整这些超参数)
+    # Configuration (Hyperparameters)
     cfg = BCQConfig(
         gamma=0.99,
         lr=1e-3,
@@ -43,12 +42,11 @@ if __name__ == "__main__":
         device="cuda" if os.getenv("CUDA_VISIBLE_DEVICES") else "cpu"
     )
     
-    print(f"\n使用数据集: {dataset_path}")
-    print(f"设备: {cfg.device}")
-    print(f"VAE训练轮数: {cfg.vae_epochs}")
-    print(f"BCQ训练轮数: {cfg.bcq_epochs}")
-    print(f"批次大小: {cfg.batch_size}")
-    print("\n开始训练BCQ agent...\n")
+    print(f"\nUsing: {dataset_path}")
+    print(f"Device: {cfg.device}")
+    print(f"VAE epochs: {cfg.vae_epochs}")
+    print(f"BCQ epochs: {cfg.bcq_epochs}")
+    print(f"batch size: {cfg.batch_size}")
     
     # Train BCQ (with periodic evaluation during training)
     model_path = "./models/cartpole_bcq.torch"
@@ -61,12 +59,11 @@ if __name__ == "__main__":
     )
     
     print("\n" + "=" * 60)
-    print("训练完成！")
-    print(f"模型已保存到: {model_path}")
+    print(f"model saved to: {model_path}")
     print("=" * 60)
     
     # Evaluate
-    print("\n开始评估训练好的BCQ agent...\n")
+    print("\nbegin evaluation BCQ agent...\n")
     scores = evaluate(
         model_path=model_path,
         episodes=100,
@@ -95,12 +92,7 @@ if __name__ == "__main__":
     
     # Print statistics
     print("\n" + "=" * 60)
-    print("评估完成！")
-    print(f"总episodes: {len(scores)}")
-    print(f"平均分数: {np.mean(scores):.2f} ± {np.std(scores):.2f}")
-    print(f"最高分数: {max(scores)}")
-    print(f"最低分数: {min(scores)}")
-    print(f"中位数: {np.median(scores):.2f}")
-    print(f"达到500步的episodes: {sum(1 for s in scores if s >= 500)} ({sum(1 for s in scores if s >= 500)/len(scores)*100:.1f}%)")
+    print(f"episodes: {len(scores)}")
+    print(f"average: {np.mean(scores):.2f} ± {np.std(scores):.2f}")
     print("=" * 60)
 

@@ -19,7 +19,7 @@ BATCH_SIZE = 64
 def generate_data(
     data_dir: str = "./data",
     episode_num: int = 100, # one episode 500 steps, dataset = episode_num * 500 
-    expert: str = "ppo", # 装个样子☝️🤓
+    expert: str = "ppo", # 装个样子☝️🤓, 实际只支持 ppo
     model_path: str = "models/cartpole_ppo.torch"
 ) -> None:
 

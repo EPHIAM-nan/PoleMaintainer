@@ -283,8 +283,7 @@ def train_world_model(
 	mean = states.mean(axis=0)
 	std = states.std(axis=0) + 1e-6
 	
-	# Normalize dataset in-place (or copy if needed, but here we can just use local vars)
-	# We need to normalize states and next_states
+	# normalize states and next_states
 	states_norm = (states - mean) / std
 	next_states_norm = (next_states - mean) / std
 	
